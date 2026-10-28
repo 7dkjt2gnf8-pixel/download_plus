@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Download+</title>
+<meta name="theme-color" content="#0f1d33">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Download+">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+  :root{
+    --bg:#0f1d33; --card:#172a45; --line:#284266; --text:#f2f3ff; --muted:#9a9cc0;
+    --a1:#f0912a; --a2:#f5b04a; --ok:#34d399; --err:#f87171;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif}
+  body{min-height:100dvh;padding:calc(env(safe-area-inset-top) + 20px) 16px calc(env(safe-area-inset-bottom) + 24px)}
+  .wrap{max-width:520px;margin:0 auto}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+  header img{width:48px;height:48px;border-radius:12px}
+  h1{font-size:26px;margin:0;letter-spacing:-.5px}
+  h1 span{background:linear-gradient(90deg,var(--a1),var(--a2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px}
+  label{font-size:13px;color:var(--muted);display:block;margin-bottom:8px}
+  .row{display:flex;gap:8px}
+  input{flex:1;min-width:0;background:#0c182b;border:1px solid var(--line);color:var(--text);
+    border-radius:14px;padding:14px;font-size:16px;outline:none}
+  input:focus{border-color:var(--a1)}
+  .btn{border:0;border-radius:14px;padding:14px 16px;font-size:16px;font-weight:600;cursor:pointer;color:#fff}
+  .ghost{background:#223a5c}
+  .seg{display:grid;grid-template-columns:1fr 1fr;background:#0c182b;border-radius:14px;padding:4px;margin:16px 0}
+  .seg button{background:none;border:0;color:var(--muted);padding:12px;border-radius:11px;font-size:15px;font-weight:600}
+  .seg button.on{background:linear-gradient(135deg,var(--a1),var(--a2));color:#fff}
+  select{width:100%;background:#0c182b;color:var(--text);border:1px solid var(--line);border-radius:14px;padding:13px;font-size:16px;margin-bottom:16px}
+  .go{width:100%;background:linear-gradient(135deg,var(--a1),var(--a2));font-size:17px;padding:16px}
+  .go:disabled{opacity:.5}
+  .preview{display:none;gap:12px;align-items:center;margin-top:14px}
+  .preview.show{display:flex}
+  .preview img{width:112px;aspect-ratio:16/9;object-fit:cover;border-radius:10px;background:#000}
+  .preview .t{font-weight:600;font-size:15px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .preview .m{color:var(--muted);font-size:13px;margin-top:4px}
+  .status{margin-top:14px;font-size:14px;color:var(--muted);min-height:20px;text-align:center}
+  .status.err{color:var(--err)} .status.ok{color:var(--ok)}
+  .bar{height:4px;border-radius:4px;background:#223a5c;overflow:hidden;margin-top:10px;display:none}
+  .bar.show{display:block}
+  .bar i{display:block;height:100%;width:30%;background:linear-gradient(90deg,var(--a1),var(--a2));animation:slide 1.2s infinite ease-in-out}
+  @keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(340%)}}
+  footer{color:var(--muted);font-size:12px;text-align:center;margin-top:20px}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img src="/icon.svg" alt="">
+    <h1>Download<span>+</span></h1>
+  </header>
+
+  <div class="card">
+    <label for="url">Lien de la vidéo</label>
+    <div class="row">
+      <input id="url" type="url" inputmode="url" autocomplete="off" placeholder="https://youtube.com/watch?v=…">
+      <button class="btn ghost" id="paste" title="Coller">Coller</button>
+    </div>
+
+    <div class="preview" id="preview">
+      <img id="thumb" alt="">
+      <div><div class="t" id="title"></div><div class="m" id="meta"></div></div>
+    </div>
+
+    <div class="seg" role="tablist">
+      <button id="tVideo" class="on">🎬 Vidéo MP4</button>
+      <button id="tAudio">🎧 Audio MP3</button>
+    </div>
+
+    <select id="quality">
+      <option value="2160">4K (2160p)</option>
+      <option value="1080" selected>Full HD (1080p)</option>
+      <option value="720">HD (720p)</option>
+      <option value="480">480p</option>
+      <option value="360">360p (léger)</option>
+    </select>
+
+    <button class="btn go" id="go">Télécharger</button>
+    <div class="bar" id="bar"><i></i></div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <footer>Ne télécharge que des contenus dont tu as les droits.</footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let kind = 'video', infoTimer;
+
+function setKind(k){
+  kind = k;
+  $('tVideo').classList.toggle('on', k==='video');
+  $('tAudio').classList.toggle('on', k==='audio');
+  $('quality').classList.toggle('hidden', k==='audio');
+}
+$('tVideo').onclick = () => setKind('video');
+$('tAudio').onclick = () => setKind('audio');
+
+function status(msg, cls=''){ const s=$('status'); s.textContent=msg; s.className='status '+cls; }
+const fmt = s => s ? `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}` : '';
+
+async function loadInfo(){
+  const url = $('url').value.trim();
+  if(!/^https?:\/\//.test(url)){ $('preview').classList.remove('show'); return; }
+  status('Lecture du lien…');
+  try{
+    const r = await fetch('/api/info?url='+encodeURIComponent(url));
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error);
+    $('thumb').src = d.thumbnail || '';
+    $('title').textContent = d.title || '';
+    $('meta').textContent = [d.uploader, fmt(d.duration)].filter(Boolean).join(' · ');
+    $('preview').classList.add('show');
+    status('');
+  }catch(e){ $('preview').classList.remove('show'); status(e.message,'err'); }
+}
+$('url').addEventListener('input', () => { clearTimeout(infoTimer); infoTimer = setTimeout(loadInfo, 500); });
+
+$('paste').onclick = async () => {
+  try{ $('url').value = (await navigator.clipboard.readText()).trim(); loadInfo(); }
+  catch{ $('url').focus(); status('Colle le lien manuellement (appui long).'); }
+};
+
+$('go').onclick = async () => {
+  const url = $('url').value.trim();
+  if(!/^https?:\/\//.test(url)){ status('Entre un lien valide.','err'); return; }
+  const q = $('quality').value;
+  const dl = `/api/download?type=${kind}&q=${q}&url=${encodeURIComponent(url)}`;
+  $('go').disabled = true; $('bar').classList.add('show');
+  status(kind==='audio' ? 'Extraction de l’audio…' : 'Préparation de la vidéo…');
+  try{
+    // Vérifie d'abord que le serveur a bien produit le fichier
+    const r = await fetch(dl);
+    if(!r.ok){ const d = await r.json().catch(()=>({})); throw new Error(d.error || 'Erreur serveur'); }
+    const blob = await r.blob();
+    const cd = r.headers.get('Content-Disposition') || '';
+    let name = (cd.match(/filename\*=UTF-8''([^;]+)/)||[])[1];
+    name = name ? decodeURIComponent(name) : ((cd.match(/filename="?([^"]+)"?/)||[])[1] || `download.${kind==='audio'?'mp3':'mp4'}`);
+    const file = new File([blob], name, {type: blob.type});
+    // Sur mobile : feuille de partage (Enregistrer dans Fichiers / Photos)
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file], title:name}); status('Terminé ✓','ok'); return; }
+      catch(e){ if(e.name==='AbortError'){ status('Partage annulé.'); return; } }
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 60000);
+    status('Terminé ✓','ok');
+  }catch(e){ status(e.message,'err'); }
+  finally{ $('go').disabled = false; $('bar').classList.remove('show'); }
+};
+
+// Partage direct depuis l'app YouTube (Android) : ?url=…
+const p = new URLSearchParams(location.search);
+const shared = p.get('url') || (p.get('text')||'').match(/https?:\/\/\S+/)?.[0];
+if(shared){ $('url').value = shared; loadInfo(); }
+
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+</script>
+</body>
+</html>
